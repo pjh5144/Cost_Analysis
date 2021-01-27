@@ -18,6 +18,20 @@ edc<-read.csv("/Users/peterhoover/Documents/Analysis_Projects/Global_data/mappin
 pts<-data.table::fread("/Users/peterhoover/Documents/Analysis_Projects/Global_data/cost/clean/perPatientTotals_proj.csv")
 encs<-data.table::fread("/Users/peterhoover/Documents/Analysis_Projects/Global_data/cost/clean/tbi_enc_proj.csv")
 
+#Correct/Reformat Variables
+
+#Age Breaks
+pts<-pts%>%
+  mutate(age = case_when(is.na(age) ~ mean(age,na.rm=T),
+                         TRUE ~ age))%>%
+  mutate(age_grp = cut(round(as.numeric(age),1),breaks=c(0,24,34,44,54,64),
+                       labels=c("18-24","25-34","35-44","45-54","55-64"),include.lowest = T))
+#Missing BOS
+pts<-pts%>%
+  mutate(sponservice = case_when(sponservice==""~"X",
+                                 TRUE ~ sponservice))
+
+
 #Create Percentile Flags 
 #90th and 95th
 
@@ -27,10 +41,9 @@ pts<-pts%>%
          perc_95_total = case_when(Cost_Post >= quantile(Cost_Post,.95) ~ 1,
                              TRUE ~ 0),
          perc_90_mh = case_when(Cost_Post_MH >= quantile(Cost_Post_MH,.90) ~ 1,
-                                TRUE ~ 0 ),
+                                TRUE ~ 0),
          perc_95_mh = case_when(Cost_Post_MH >+ quantile(Cost_Post_MH,.95) ~1,
-                                TRUE ~ 0 ))
-
+                                TRUE ~ 0))
 
 table(pts$perc_90)
 
@@ -57,20 +70,39 @@ dx_long<-encs%>%
 
 comor<-comorbidity(x=dx_long,id="pseudo_personid",code="value",score="charlson",assign0=F)
 
-summary(comor$windex)
-
-
-
-
+#summary(comor$windex)
 
 
 #Append features to final df
 
-#Add and fill in comorbidity 
+#Add and fill in co-morbidity 
 pts<-pts%>%
   left_join(comor,by="pseudo_personid")%>%
   mutate_at(vars(score,wscore,),~replace(.,is.na(.),0))%>%
   mutate_at(vars(index,windex,),~replace(.,is.na(.),"0"))
+
+
+
+
+
+
+df<-pts
+
+############################
+###Create Train Test Sets###
+############################
+
+set.seed(1111)
+
+###################################
+#Create train/test sets 
+
+sample<-sample.int(n=nrow(df),size=floor(0.75*nrow(df)),replace=F)
+train<-df[sample,]
+test<-df[-sample,]
+
+
+
 
 
 
